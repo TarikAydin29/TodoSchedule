@@ -1,0 +1,138 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Home page";
+}
+
+<script src="~/lib/daypilot/daypilot-all.min.js" asp-append-version="true"></script>
+
+<div class="wrap">
+    <div class="left">
+        <div id="nav"></div>
+    </div>
+    <div class="right">
+        <div id="dp"></div>
+    </div>
+</div>
+
+<script>
+
+    const nav = new DayPilot.Navigator("nav", {
+        showMonths: 3,
+        skipMonths: 3,
+        selectMode: "Week",
+        onTimeRangeSelected: args => {
+            dp.startDate = args.day;
+            dp.update();
+            dp.events.load("/api/events");            
+        }
+    });
+    nav.init();
+
+
+    const dp = new DayPilot.Calendar("dp", {
+        viewType: "Week",
+        contextMenu: new DayPilot.Menu({
+            items: [
+                {
+                    text: "Delete",
+                    onClick: async (args) => {
+                        const e = args.source;
+                        const {data} = await DayPilot.Http.delete(`/api/events/${e.id()}`);
+                        dp.events.remove(e.id());
+                    }
+                },
+                {
+                    text: "-"
+                },
+                {
+                    text: "Blue",
+                    icon: "icon icon-blue",
+                    color: "#1066a8",
+                    onClick: (args) => { app.updateColor(args.source, args.item.color); }
+                },
+                {
+                    text: "Green",
+                    icon: "icon icon-green",
+                    color: "#6aa84f",
+                    onClick: (args) => { app.updateColor(args.source, args.item.color); }
+                },
+                {
+                    text: "Yellow",
+                    icon: "icon icon-yellow",
+                    color: "#f1c232",
+                    onClick: (args) => { app.updateColor(args.source, args.item.color); }
+                },
+                {
+                    text: "Red",
+                    icon: "icon icon-red",
+                    color: "#cc0000",
+                    onClick: (args) => { app.updateColor(args.source, args.item.color); }
+                },
+
+            ]
+        }),
+        onTimeRangeSelected: async (args) => {
+            const modal = await DayPilot.Modal.prompt("Create a new event:", "Event");
+            dp.clearSelection();
+            if (modal.canceled) {
+                return;
+            }
+            const params = {
+                start: args.start,
+                end: args.end,
+                text: modal.result
+            };
+            const { data } = await DayPilot.Http.post("/api/events", params);
+            dp.events.add(data);
+        },
+        onEventMove: async (args) => {
+            const params = {
+                id: args.e.id(),
+                start: args.newStart,
+                end: args.newEnd
+            };
+            const {data} = await DayPilot.Http.put(`/api/events/${args.e.id()}/move`, params);
+        },
+        onEventResize: async (args) => {
+            const params = {
+                id: args.e.id(),
+                start: args.newStart,
+                end: args.newEnd
+            };
+            const {data} = await DayPilot.Http.put(`/api/events/${args.e.id()}/move`, params);
+        },
+        onBeforeEventRender: (args) => {
+            args.data.barColor = args.data.color;
+            args.data.areas = [
+                {
+                    top: 4,
+                    right: 4,
+                    width: 16,
+                    height: 16,
+                    symbol: "icons/daypilot.svg#minichevron-down-2",
+                    visibility: "Hover",
+                    action: "ContextMenu",
+                    style: "background-color: #f9f9f9; border: 1px solid #ccc; padding: 2px; border-radius: 15px; cursor:pointer;"
+                }
+            ];
+        }
+    });
+    dp.init();
+
+    const app = {
+        async updateColor(e, color) {
+            const params = {
+                color: color
+            };
+            const {data} = await DayPilot.Http.put(`/api/events/${e.id()}/color`, params);
+            e.data.color = color;
+            dp.events.update(e);
+        },
+        init() {
+            dp.events.load("/api/events");
+        }
+    };
+    app.init();
+
+</script>
